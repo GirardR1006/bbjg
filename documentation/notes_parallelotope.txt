@@ -1,0 +1,20 @@
+Problématique des méthodes utilisant des boîtes: le "wrapping effect". Lors de transformations successives, les boîtes qui bornent le domaine de la solution 
+s'agrandissent de plus en plus, ce qui fait qu'on perd en précision. 
+
+L'extension naturelle (c'est à dire l'évaluation d'une fonction non plus sur des points mais des intervalles) introduit un pessimisme dont il est 
+question de se débarasser pour encadrer "au mieux" la solution.
+
+
+Notion: les zero-crossing ou tangent-crossing foirent complètement avec des méthodes de Newton. 
+
+
+Pour contrer le phénomène de wrapping, les parallélotopes constituent une solution possible.
+Parallélotope: triplet (R{n*n},IR{n},R{n}) <A,u,x> = x + Au (IR désigne l'espace des intervalles) 
+
+Propriété: l'image d'un parallélotope est un parallélotope
+
+
+Utilité du parallélotope: on a deux flots, chacuns associés à deux modes. Le parallélotope permet de "lier" les états possibles avant le saut de mode, et ceux possibles
+après le saut de mode. 
+
+Il y a un exemple de dynamique de balle rebondissante en dimension n
