@@ -2,10 +2,11 @@
 #include "vibes.cpp"
 #include <fstream>
 #include <math.h> /*sqrt*/
+#include <algorithm> /*min max*/
 
 #define __PREC__ 1e-11
 #define __METH__ RK4
-#define DELTA_T 0.1
+#define DELTA_T 1.
 #define EPS 1e-6
 using namespace ibex;
 using namespace std;
@@ -44,37 +45,59 @@ void print_interval(Interval i){
 //Entrée: conditions initiales en position et en vitesse verticales
 double exact_intersect_time(double y0, double vy0){
     if (y0 < EPS){
-        return (vy0/9.81);
+        return (2*vy0/9.81);
     }
     else{
-        return ( (-vy0 - sqrt(pow(vy0,2)+4*9.81*y0)) / (-2*9.81) );
+        return ( (vy0 + sqrt(pow(vy0,2)+2*9.81*y0)) / (9.81) );
     }
+}
+
+Interval union_interval (Interval i1, Interval i2){
+    Interval u(min(i1.lb(),i2.lb()),max(i1.ub(),i2.ub()));
+    return u;
 }
 
 //Récupère les derniers résultats au dessus de la garde dans une simulation
 //garantie: x, y, vx, vy, t
-IntervalVector dernier_res_valide(simulation simu){
-    Interval ytmp;
-    list<solution_g>::iterator iterator_list;
-
-    iterator_list=simu.list_solution_g.end();
-    while(iterator_list!=simu.list_solution_g.begin()){
-        ytmp = iterator_list->box_j1->operator[](1);
-        if (ytmp.lb()<0){
-            if (ytmp.ub()<0){
-                iterator_list--; //Si on est en dessous du sol avec certitude, on passe au résultat précédent
-            }
-            else{
-                IntervalVector res(5);
-                res[0]=iterator_list->box_j1->operator[](0); //box containing x
-                res[1]=iterator_list->box_j1->operator[](1); //box containing y
-                res[2]=iterator_list->box_j1->operator[](2); //box containing vx
-                res[3]=iterator_list->box_j1->operator[](3); //box containing vy
-                res[4]=iterator_list->box_j1->operator[](4); //box containing t
-                return res;
-                break;
-            }
-        }
+IntervalVector dernier_res_valide(simulation simu, list<solution_g>::iterator iterator_list){
+//    Interval ytmp(0.,0.);
+//    list<solution_g>::iterator mem, iterator_list;
+    for(iterator_list=simu.list_solution_g.begin();iterator_list!=simu.list_solution_g.end();iterator_list++){
+//        ytmp = iterator_list->box_j1->operator[](1);
+//        print_interval(ytmp);
+//        if (ytmp.lb()>0){
+//            mem = iterator_list; //Si on est en dessous du sol avec certitude, on passe au résultat précédent
+//        }
+//        else{
+//            if (ytmp.ub()>0){
+//                //Si l'intervalle a un min négatif et un max positif, on
+//                //renvoie le 
+//                IntervalVector res(5);
+//                res[0]=iterator_list->box_j1->operator[](0); //box containing x
+//                res[1]=iterator_list->box_j1->operator[](1); //box containing y
+//                res[2]=iterator_list->box_j1->operator[](2); //box containing vx
+//                res[3]=iterator_list->box_j1->operator[](3); //box containing vy
+//                res[4]=iterator_list->box_j1->operator[](4); //box containing t
+//                return res;
+//                break;
+//            }
+//            else{
+//            //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, on
+//            //fait une union brutale entre les intervalles
+//            print_interval(iterator_list->box_j1->operator[](0));
+//            print_interval(mem->box_j1->operator[](0));
+//            IntervalVector res(5);
+//            
+//            res[0]=union_interval(iterator_list->box_j1->operator[](0),mem->box_j1->operator[](0)); //box containing x from now
+//            print_interval(res[0]);
+//            res[1]=union_interval(iterator_list->box_j1->operator[](1),mem->box_j1->operator[](1)); //box containing y from now
+//            res[2]=union_interval(iterator_list->box_j1->operator[](2),mem->box_j1->operator[](2)); //box containing vx from now
+//            res[3]=union_interval(iterator_list->box_j1->operator[](3),mem->box_j1->operator[](3)); //box containing vy from now
+//            res[4]=union_interval(iterator_list->box_j1->operator[](4),mem->box_j1->operator[](4)); //box containing t from now
+//            return res;
+//            break;
+//            }
+//        }
     }
 }
 int main() {
@@ -102,8 +125,13 @@ int main() {
   State_init[4] = T0;  // t
   //Constante
   Interval g(9.81,9.81); //gravité
-  
-
+  //Intervalle à bissecter
+  IntervalVector ToBB(5);
+  ToBB[0]=Px0;
+  ToBB[1]=Px0;
+  ToBB[2]=Px0;
+  ToBB[3]=Px0;
+  ToBB[4]=Px0;
   
   //**********
   //dynamique
@@ -111,22 +139,21 @@ int main() {
   Variable y(5); 
   Function deriv = Function (y, Return(y[2],y[3],Interval(0.0,0.0),-g,Interval(1.0,1.0)) );
 
-  //TODO:
-  //**********
-  //garde
-  //***********
-  Variable x1;
-  Variable y1;
-  Function guard = Function (x1,y1,x1*y1);
-  //Nous donne un intervalle produit 
-  Interval z = guard.eval(interval_trans(Py0));
-  print_interval(z);
+  ////TODO:for later maybe
+  ////**********
+  ////garde
+  ////***********
+  //Variable x1;
+  //Variable y1;
+  //Function guard = Function (x1,y1,x1*y1);
+  ////Nous donne un intervalle produit 
+  //Interval z = guard.eval(interval_trans(Py0));
+  //print_interval(z);
 
-  //TODO:
   //**********
   //Résolution du problème
   //***********
-  //Définition du problème
+  //Définition du problème initial
   ivp_ode problem = ivp_ode (deriv, 0.0, State_init);
   
   //Calcul du temps d'intersection exact avec le sol
@@ -135,20 +162,60 @@ int main() {
   //Construction de la simulation, lancement
   simulation simu = simulation (&problem, duration, __METH__, __PREC__);
   simu.run_simulation();
+  simu.export2d_yn("export-vitesse.txt", 2,3);
+  simu.export2d_yn("export-position.txt", 0,1);
+  simu.export2d_yn("export-time.txt",0,4);
   //Récupère les derniers résultats au dessus de la garde de la simulation courante
-  //TODO
-  //Bissection en temps
+  list<solution_g>::iterator it,mem;
+  Interval ytmp;
+  for(it=simu.list_solution_g.begin();it!=simu.list_solution_g.end();it++){
+    ytmp = it->box_j1->operator[](1);
+    if (ytmp.lb()>0){
+        mem = it; //Si on est eu dessus du sol avec certitude, on passe au résultat suivant
+    }
+    else{
+        if (ytmp.ub()>0){
+            ToBB[0]=it->box_j1->operator[](0); // x
+            ToBB[1]=it->box_j1->operator[](1); // y
+            ToBB[2]=it->box_j1->operator[](2); // vx
+            ToBB[3]=it->box_j1->operator[](3); // vy
+            ToBB[4]=it->box_j1->operator[](4); // t
+            break;
+        }
+        else{
+        //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, on
+        //fait une union brutale entre les intervalles
+            ToBB[0]=union_interval(it->box_j1->operator[](0),mem->box_j1->operator[](0));
+            print_interval(ToBB[0]);
+            ToBB[1]=union_interval(it->box_j1->operator[](1),mem->box_j1->operator[](1));
+            ToBB[2]=union_interval(it->box_j1->operator[](2),mem->box_j1->operator[](2));
+            ToBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
+            ToBB[4]=union_interval(it->box_j1->operator[](4),mem->box_j1->operator[](4));
+            break;
+        }
+    }
+  }
+  for (int i=0;i<5;i++){
+    print_interval(ToBB[i]);
+  }
+  //TODO:
+  //Bissections
   //bissected_time = Bissect(t);
+  //bissected_x = Bissect_x(bissected_time);
+  //bissected_y = Bissect_x(bissected_time);
+  //bissected_vx = Bissect_x(bissected_time);
+  //bissected_vy = Bissect_x(bissected_time);
+  //TODO: Tester des stratégies de contraction sur les différents intervalles
   //Définition d'un nouveau problème avec les conditions initiales bissectées
   //State_init[0] = Px0; // x
   //State_init[1] = Py0; // y
   //State_init[2] = Vx0; // vx
   //State_init[3] = Vy0; // vy
   //State_init[4] = T0;  // t
+  //problem = problem(...,State_init);
+  //Relancer la simulation
+  //
  
-  // simu.export2d_yn("export-vitesse.txt", 2,3);
- // simu.export2d_yn("export-position.txt", 0,1);
- // simu.export1d_yn("export-time.txt",4);
   //TODO:
   //Dessin
   //vibes::beginDrawing ();
