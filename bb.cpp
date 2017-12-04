@@ -6,7 +6,7 @@
 
 #define __PREC__ 1e-11
 #define __METH__ RK4
-#define DELTA_T 1.
+//#define DELTA_T 1.
 #define EPS 1e-6
 using namespace ibex;
 using namespace std;
@@ -57,6 +57,7 @@ Interval union_interval (Interval i1, Interval i2){
     return u;
 }
 
+// // INUTILE --> intégré dans le main pour question de seg fault
 //Récupère les derniers résultats au dessus de la garde dans une simulation
 //garantie: x, y, vx, vy, t
 IntervalVector dernier_res_valide(simulation simu, list<solution_g>::iterator iterator_list){
@@ -98,6 +99,7 @@ IntervalVector dernier_res_valide(simulation simu, list<solution_g>::iterator it
 //            break;
 //            }
 //        }
+// //FIN INUTILE
     }
 }
 int main() {
@@ -157,8 +159,15 @@ int main() {
   ivp_ode problem = ivp_ode (deriv, 0.0, State_init);
   
   //Calcul du temps d'intersection exact avec le sol
-  t_cross_exact = exact_intersect_time(State_init[1].lb(),State_init[3].lb());
-  duration = t_cross_exact+DELTA_T;
+  t_cross_exact = exact_intersect_time(State_init[1].mid(),State_init[3].mid());
+  double delta_T = exact_intersect_time(State_init[1].diam(),State_init[3].diam());
+  duration = t_cross_exact+delta_T;
+  cout << "T simulation " << delta_T << endl;
+  cout << "T exact d'intersection " << t_cross_exact <<endl;
+  cout << "Y exact d'intersection " << -9.81 * pow(t_cross_exact,2)/2 + Vy0.mid() * t_cross_exact + Py0.mid() << endl;
+  cout << "X exact d'intersection " << Vx0.mid() * t_cross_exact + Px0.mid() << endl;
+  cout << "Vy exact d'intersection " << -9.81 *t_cross_exact + Vy0.mid()<<endl;
+  cout << "Vx exact d'intersection " << Vx0.mid() <<endl;
   //Construction de la simulation, lancement
   simulation simu = simulation (&problem, duration, __METH__, __PREC__);
   simu.run_simulation();
@@ -196,8 +205,13 @@ int main() {
     }
   }
   for (int i=0;i<5;i++){
+    printf("\n");
     print_interval(ToBB[i]);
   }
+  
+  
+  
+  
   //TODO:
   //Bissections
   //bissected_time = Bissect(t);
@@ -205,6 +219,8 @@ int main() {
   //bissected_y = Bissect_x(bissected_time);
   //bissected_vx = Bissect_x(bissected_time);
   //bissected_vy = Bissect_x(bissected_time);
+  
+  
   //TODO: Tester des stratégies de contraction sur les différents intervalles
   //Définition d'un nouveau problème avec les conditions initiales bissectées
   //State_init[0] = Px0; // x
