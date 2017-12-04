@@ -106,6 +106,7 @@ int main() {
   
   double t_cross_exact = 0.0;
   double duration = 0.0;
+  double Eps = 1e-3;
   //**********
   //conditions initiales
   //***********
@@ -204,6 +205,7 @@ int main() {
         }
     }
   }
+  printf("Intervalle ToBB : intersection \n ");
   for (int i=0;i<5;i++){
     printf("\n");
     print_interval(ToBB[i]);
@@ -211,14 +213,28 @@ int main() {
   
   
   
+  //Version contraction des 5 en même temps => condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
+  cout << "Intervalle complet avant contraction : " << ToBB <<endl;
+  Variable all(5); //x,y,vx,vy,t
+  double alpha = 0;
+  Function A_f_const(all, Return( all[0] - Vx0.lb()*all[4] - Px0.lb() ,  all[1]- alpha,  all[2] - Vx0.lb(), all[3] - (-9.81*all[4] + Vy0.lb()) , -9.81*pow(all[4],2)/2+100 -alpha )); 
+  NumConstraint A_allConst(A_f_const,GEQ);
+  CtcFwdBwd A_ctc_All(A_allConst);
+  CtcFixPoint A_fpAll(A_ctc_All, 1e-7);
+  A_fpAll.contract(ToBB);
+  cout << "Intervalle complet contracté (contrainte y>=0) " << ToBB << endl;
+
+
+  //Version contraction des 5 en même temps => condition y<=eps && vx <= max(vx(t)) &&  x<= max(x(t)) && vy <= max(vy(t))
+  alpha = Eps;
+  Function B_f_const(all, Return( all[0] - Vx0.ub()*all[4] - Px0.ub() ,  all[1]- alpha,  all[2] - Vx0.ub(), all[3] - (-9.81*all[4] + Vy0.ub()) , -9.81*pow(all[4],2)/2+100 -alpha )); 
+  NumConstraint B_allConst(B_f_const,LEQ);
+  CtcFwdBwd B_ctc_All(B_allConst);
+  CtcFixPoint B_fpAll(B_ctc_All, 1e-4);
+  B_fpAll.contract(ToBB);
+  cout << "Intervalle complet contracté (contrainte y<=epsilon) " << ToBB << endl;
+
   
-  //TODO:
-  //Bissections
-  //bissected_time = Bissect(t);
-  //bissected_x = Bissect_x(bissected_time);
-  //bissected_y = Bissect_x(bissected_time);
-  //bissected_vx = Bissect_x(bissected_time);
-  //bissected_vy = Bissect_x(bissected_time);
   
   
   //TODO: Tester des stratégies de contraction sur les différents intervalles
