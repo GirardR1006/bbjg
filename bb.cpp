@@ -6,13 +6,12 @@
 
 #define __PREC__ 1e-11
 #define __METH__ RK4
-//#define DELTA_T 1.
 #define EPS 1e-6
 using namespace ibex;
 using namespace std;
 
 //Fonction d'aide pour afficher les résultats de la simulation
-//Les boîtes sont les valeurs y(t)
+//Les boîtes dessinées sont les valeurs y(t)
 void plot_all(list<IntervalVector> l)
 {
     for(list<IntervalVector>::iterator it = l.begin();it!=l.end();it++){
@@ -21,20 +20,6 @@ void plot_all(list<IntervalVector> l)
     }
 
 }
-//Créé un vecteur depuis l'intervalle [x] 
-//constitué des scalaires x_min et x_max 
-//À évaluer par la garde pour déterminer si le sol est traversé
-IntervalVector interval_trans (Interval i){
-  double _x[2][2]={{i.lb(),i.lb()},{i.ub(),i.ub()}};
-  IntervalVector uplow (2,_x);
-  return uplow;
-}
-
-//Imprime un intervalle
-void print_interval(Interval i){
-    printf("[%f,%f]",i.lb(),i.ub());
-}
-
 //Calcul du temps exact d'intersection avec le sol
 //Entrée: conditions initiales en position et en vitesse verticales
 double exact_intersect_time(double y0, double vy0){
@@ -50,6 +35,96 @@ Interval union_interval (Interval i1, Interval i2){
     Interval u(min(i1.lb(),i2.lb()),max(i1.ub(),i2.ub()));
     return u;
 }
+//Renvoie les intervalles y0 qui vérifient les conditions de rentrée 
+//dans le panier. 
+//Paramètre d'entrée: int n: nombre de rebond
+//Paramètre d'entrée: IntervalVector init: vecteur de condition initiales
+//Paramètre d'entrée: Function f: dynamique
+//list<Interval> simulate_launch(int n, IntervalVector init, Function f){
+//    IntervalVector w_in = init; //Conditions initiales amenées à être modifiées 
+//    IntervalVector ToBB = init; //Conditions initiales amenées à être bissectée
+//    double alpha = 0;
+//    double t_cross_exact = 0;
+//    list<Interval> valid_y;
+//    for(int i=0;i<=n;i++){
+//        //Définition des contracteurs
+//        //condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
+//        Variable all(5); //x,y,vx,vy,t
+//        Function A_f_const(all, Return( all[0] - w_in[2].lb()*all[4] - w_in[0].lb() 
+//                                      , all[1]- alpha
+//                                      , all[2] - w_in[2].lb()
+//                                      , all[3] - (-9.81*all[4] + w_in[3].lb()) 
+//                                      , -9.81*pow(all[4],2)/2+w_in[3].ub()*all[4] + w_in[1].ub() -alpha ));  
+//        NumConstraint A_allConst(A_f_const,GEQ);
+//        CtcFwdBwd A_ctc_All(A_allConst);
+//        CtcFixPoint A_fpAll(A_ctc_All, 1e-7);
+//
+//         //condition y<=eps && vx <= max(vx(t)) &&  x<= max(x(t)) && vy <= max(vy(t))
+//        Function B_f_const(all, Return( all[0] - w_in[2].ub()*all[4] - w_in[0].ub() 
+//                                      , all[1]- alpha
+//                                      , all[2] - w_in[2].ub() 
+//                                      , all[3] - (-9.81*all[4] + w_in[3].ub())  
+//                                      , -9.81*pow(all[4],2)/2+Vy0.lb()*all[4] + w_in[1].lb() -alpha )); 
+//        NumConstraint B_allConst(B_f_const,LEQ);
+//        CtcFwdBwd B_ctc_All(B_allConst);
+//        CtcFixPoint B_fpAll(B_ctc_All, 1e-4);
+//        //Définition du problème
+//        ivp_ode problem = ivp_ode (f, w_in[4].mid(), w_in);
+//        //Calcul du temps d'intersection exact avec le sol
+//        t_cross_exact = exact_intersect_time(w_in[1].mid(),w_in[3].mid());
+//        double delta_T = exact_intersect_time(w_in[1].diam(),w_in[3].diam());
+//        duration = t_cross_exact+delta_T;
+//        simulation simu = simulation (&problem, duration, __METH__, __PREC__);
+//        simu.run_simulation();
+//        //Récupère les derniers résultats au dessus de la garde de la simulation courante
+//        list<solution_g>::iterator it,mem;
+//        Interval ytmp;
+//        for(it=simu.list_solution_g.begin();it!=simu.list_solution_g.end();it++){
+//            ytmp = it->box_j1->operator[](1);
+//            if (ytmp.lb()>0){
+//                mem = it; 
+//            //Si on est eu dessus du sol avec certitude, on passe au résultat suivant
+//            }
+//            else{
+//                if (ytmp.ub()>0){
+//                    ToBB[0]=it->box_j1->operator[](0); // x
+//                    ToBB[1]=it->box_j1->operator[](1); // y
+//                    ToBB[2]=it->box_j1->operator[](2); // vx
+//                    ToBB[3]=it->box_j1->operator[](3); // vy
+//                    ToBB[4]=it->box_j1->operator[](4); // t
+//                    break;
+//                }
+//                else{
+//            //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, 
+//            //on fait une union brutale entre les intervalles
+//                    ToBB[0]=union_interval(it->box_j1->operator[](0),mem->box_j1->operator[](0));
+//                    ToBB[1]=union_interval(it->box_j1->operator[](1),mem->box_j1->operator[](1));
+//                    ToBB[2]=union_interval(it->box_j1->operator[](2),mem->box_j1->operator[](2));
+//                    ToBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
+//                    ToBB[4]=union_interval(it->box_j1->operator[](4),mem->box_j1->operator[](4));
+//                    break;
+//                }
+//             }
+//         }
+//   
+//    A_fpAll.contract(ToBB);
+//    alpha = Eps;
+//    B_fpAll.contract(ToBB);
+//    //Vérifier les contraintes sur x ici.
+//    //if contraintes_x not verified then 
+//        //diviser w_in en deux w_in1 et w_in2
+//        //simulate_launch(n, w_in1, f)
+//        //simulate_launch(n, w_in2, f)
+//
+//    w_int = ToBB;  //Nouvelles conditions initiales 
+//    valid_y.push_back(ToBB[1]);
+//    }
+//    //Vérifier les contraintes sur panier ici.
+//    //if contraintes_y not verified then 
+//        //diviser w_in en deux w_in1 et w_in2
+//        //simulate_launch(n, w_in1, f)
+//        //simulate_launch(n, w_in2, f)
+//}
 
 int main() {
   
@@ -143,7 +218,6 @@ int main() {
         //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, on
         //fait une union brutale entre les intervalles
             ToBB[0]=union_interval(it->box_j1->operator[](0),mem->box_j1->operator[](0));
-            print_interval(ToBB[0]);
             ToBB[1]=union_interval(it->box_j1->operator[](1),mem->box_j1->operator[](1));
             ToBB[2]=union_interval(it->box_j1->operator[](2),mem->box_j1->operator[](2));
             ToBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
