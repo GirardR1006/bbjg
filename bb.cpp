@@ -13,19 +13,19 @@ using namespace std;
 
 //Fonction d'aide pour afficher les résultats de la simulation
 //TODO: La réécrire pour éviter l'erreur de segmentation
-//void plot_simu(simulation sim)
-//{
-//    std::list<solution_g>::iterator iterator_list;
-//    for(iterator_list=sim.list_solution_g.begin();iterator_list!=sim.list_solution_g.end();iterator_list++)
-//    {
-//      if (iterator_list->box_j1->diam().max() < 2)
-//      {
-//	vibes::drawBox(iterator_list->box_j1->operator[](0).lb(), iterator_list->box_j1->operator[](0).ub(), iterator_list->box_j1->operator[](1).lb(), iterator_list->box_j1->operator[](1).ub(), "k[g]");
-//	std::cout << iterator_list->box_j1->operator[](0) << std::endl;
-//      }
-//    }
-//
-//}
+void plot_simu(simulation sim)
+{
+    list<solution_g> sols = sim.list_solution_g;
+    list<solution_g>::iterator it_sol = sim.list_solution_g.begin();
+    int i = 0;
+    while(i<sols.size()){
+	vibes::drawBox(it_sol->box_j1->operator[](4).lb(), it_sol->box_j1->operator[](4).ub(), it_sol->box_j1->operator[](1).lb(), it_sol->box_j1->operator[](1).ub(), "[green]");
+	cout <<"Time :"<< it_sol->box_j1->operator[](4) << endl;
+        i++;
+        it_sol++;
+    }
+
+}
 
 //Créé un vecteur depuis l'intervalle [x] 
 //constitué des scalaires x_min et x_max 
@@ -57,51 +57,6 @@ Interval union_interval (Interval i1, Interval i2){
     return u;
 }
 
-// // INUTILE --> intégré dans le main pour question de seg fault
-//Récupère les derniers résultats au dessus de la garde dans une simulation
-//garantie: x, y, vx, vy, t
-IntervalVector dernier_res_valide(simulation simu, list<solution_g>::iterator iterator_list){
-//    Interval ytmp(0.,0.);
-//    list<solution_g>::iterator mem, iterator_list;
-    for(iterator_list=simu.list_solution_g.begin();iterator_list!=simu.list_solution_g.end();iterator_list++){
-//        ytmp = iterator_list->box_j1->operator[](1);
-//        print_interval(ytmp);
-//        if (ytmp.lb()>0){
-//            mem = iterator_list; //Si on est en dessous du sol avec certitude, on passe au résultat précédent
-//        }
-//        else{
-//            if (ytmp.ub()>0){
-//                //Si l'intervalle a un min négatif et un max positif, on
-//                //renvoie le 
-//                IntervalVector res(5);
-//                res[0]=iterator_list->box_j1->operator[](0); //box containing x
-//                res[1]=iterator_list->box_j1->operator[](1); //box containing y
-//                res[2]=iterator_list->box_j1->operator[](2); //box containing vx
-//                res[3]=iterator_list->box_j1->operator[](3); //box containing vy
-//                res[4]=iterator_list->box_j1->operator[](4); //box containing t
-//                return res;
-//                break;
-//            }
-//            else{
-//            //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, on
-//            //fait une union brutale entre les intervalles
-//            print_interval(iterator_list->box_j1->operator[](0));
-//            print_interval(mem->box_j1->operator[](0));
-//            IntervalVector res(5);
-//            
-//            res[0]=union_interval(iterator_list->box_j1->operator[](0),mem->box_j1->operator[](0)); //box containing x from now
-//            print_interval(res[0]);
-//            res[1]=union_interval(iterator_list->box_j1->operator[](1),mem->box_j1->operator[](1)); //box containing y from now
-//            res[2]=union_interval(iterator_list->box_j1->operator[](2),mem->box_j1->operator[](2)); //box containing vx from now
-//            res[3]=union_interval(iterator_list->box_j1->operator[](3),mem->box_j1->operator[](3)); //box containing vy from now
-//            res[4]=union_interval(iterator_list->box_j1->operator[](4),mem->box_j1->operator[](4)); //box containing t from now
-//            return res;
-//            break;
-//            }
-//        }
-// //FIN INUTILE
-    }
-}
 int main() {
   
   double t_cross_exact = 0.0;
@@ -205,14 +160,7 @@ int main() {
         }
     }
   }
-  printf("Intervalle ToBB : intersection \n ");
-  for (int i=0;i<5;i++){
-    printf("\n");
-    print_interval(ToBB[i]);
-  }
-  
-  
-  
+   
   //Version contraction des 5 en même temps => condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
   cout << "Intervalle complet avant contraction : " << ToBB <<endl;
   Variable all(5); //x,y,vx,vy,t
@@ -234,7 +182,6 @@ int main() {
   CtcFixPoint B_fpAll(B_ctc_All, 1e-4);
   B_fpAll.contract(ToBB);
   cout << "Intervalle complet contracté (contrainte y<=epsilon) " << ToBB << endl;
-
   
   
   
@@ -251,8 +198,8 @@ int main() {
  
   //TODO:
   //Dessin
-  //vibes::beginDrawing ();
-  //vibes::newFigure("plot");
-  //plot_simu(simu);
+  vibes::beginDrawing ();
+  vibes::newFigure("Basket");
+  plot_simu(simu);
   return 0;
 }
