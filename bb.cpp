@@ -106,7 +106,7 @@ int main() {
   
   double t_cross_exact = 0.0;
   double duration = 0.0;
-  double Eps = 1e-3;
+  double Eps = 1e-2;
   //**********
   //conditions initiales
   //***********
@@ -116,7 +116,7 @@ int main() {
   Interval Vy0(0.0,0.0);
   //Position
   Interval Px0(0.0,0.0);
-  Interval Py0(100.0,100.0);
+  Interval Py0(160.0,170.0);
   //Temps
   Interval T0(0.0,0.0);
   //Vecteur d'état initial
@@ -217,7 +217,8 @@ int main() {
   cout << "Intervalle complet avant contraction : " << ToBB <<endl;
   Variable all(5); //x,y,vx,vy,t
   double alpha = 0;
-  Function A_f_const(all, Return( all[0] - Vx0.lb()*all[4] - Px0.lb() ,  all[1]- alpha,  all[2] - Vx0.lb(), all[3] - (-9.81*all[4] + Vy0.lb()) , -9.81*pow(all[4],2)/2+100 -alpha )); 
+  Function A_f_const(all, Return( all[0] - Vx0.lb()*all[4] - Px0.lb() ,  all[1]- alpha,  all[2] - Vx0.lb(), all[3] - (-9.81*all[4] + Vy0.lb()) , -9.81*pow(all[4],2)/2+Vy0.ub()*all[4] + Py0.ub() -alpha )); 
+  
   NumConstraint A_allConst(A_f_const,GEQ);
   CtcFwdBwd A_ctc_All(A_allConst);
   CtcFixPoint A_fpAll(A_ctc_All, 1e-7);
@@ -227,7 +228,7 @@ int main() {
 
   //Version contraction des 5 en même temps => condition y<=eps && vx <= max(vx(t)) &&  x<= max(x(t)) && vy <= max(vy(t))
   alpha = Eps;
-  Function B_f_const(all, Return( all[0] - Vx0.ub()*all[4] - Px0.ub() ,  all[1]- alpha,  all[2] - Vx0.ub(), all[3] - (-9.81*all[4] + Vy0.ub()) , -9.81*pow(all[4],2)/2+100 -alpha )); 
+  Function B_f_const(all, Return(all[0] - Vx0.ub()*all[4] - Px0.ub() , all[1]- alpha, all[2] - Vx0.ub() ,all[3] - (-9.81*all[4] + Vy0.ub())  , -9.81*pow(all[4],2)/2+Vy0.lb()*all[4] + Py0.lb() -alpha )); 
   NumConstraint B_allConst(B_f_const,LEQ);
   CtcFwdBwd B_ctc_All(B_allConst);
   CtcFixPoint B_fpAll(B_ctc_All, 1e-4);
