@@ -83,19 +83,16 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         duration = t_cross_exact+delta_T;
         cout << "duration of simulation: " << duration << endl; 
         simulation simu = simulation (&problem, duration, __METH__, __PREC__);
-        printf("Avant lancement de simulation");
-        printf("%d",simu.run_simulation());
-        printf("Après lancement de simulation");
+        simu.run_simulation();
         //Récupère les derniers résultats au dessus de la garde de la simulation courante
         list<solution_g>::iterator it,mem;
         Interval ytmp;
         for(it=simu.list_solution_g.begin();it!=simu.list_solution_g.end();it++){
             ytmp = it->box_j1->operator[](1);
-            printf("In loop");
-            if (ytmp.lb()>0){
+            mem=it;
+            if (ytmp.lb()>=0){
                 mem = it; 
                 toPlot.push_back(*it->box_j1);
-                printf("In loop2");
             //Si on est eu dessus du sol avec certitude, on passe au résultat suivant
             }
             else{
@@ -133,7 +130,7 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
     w_in[3] = (-c)*toBB[3];  // vy, condition initiale négative pour simuler le rebond
     w_in[4] = toBB[4]; // t
     valid_y.push_back(toBB[1]);
-    cout << "final time" << w_in[4] << endl;
+    cout << "Final initial condition" << w_in << endl;
     //Vérifier les contraintes sur x ici.
     //if contraintes_x not verified then 
         //diviser w_in en deux w_in1 et w_in2
@@ -145,7 +142,7 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         //diviser w_in en deux w_in1 et w_in2
         //simulate_launch(n, w_in1, f)
         //simulate_launch(n, w_in2, f)
-    plot_all(toPlot);
+    //plot_all(toPlot);
     return(valid_y);
 }
 
