@@ -12,11 +12,12 @@ using namespace std;
 
 //Fonction d'aide pour afficher les résultats de la simulation
 //Les boîtes dessinées sont les valeurs y(t)
-void plot_all(list<IntervalVector> l)
-{
+void plot_all(list<IntervalVector> l){
+    vibes::beginDrawing ();
+    vibes::newFigure("Basket");
     for(list<IntervalVector>::iterator it = l.begin();it!=l.end();it++){
 	vibes::drawBox(it->operator[](4).lb(),it->operator[](4).ub(),it->operator[](1).lb(),it->operator[](1).ub(), "[red]");
-       // cout << *it << endl;	
+//        cout <<"Intervalle dessiné: " << *it << endl;	
     }
 
 }
@@ -49,8 +50,9 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
     double Eps = 1e-2;
     double delta_T = 0.0; 
     double c = 0.8;   //elasticité du ballon
-    list<Interval> valid_y;
-    list<IntervalVector> toPlot;
+    list<Interval> valid_y; //liste des intervalles initiaux valides
+    list<IntervalVector> toPlot; //liste des boîtes à afficher
+    list<solution_g>::iterator it,mem; //itérateurs sur la liste des solutions et mémoire de la solution précédente
     for(int i=0;i<=n;i++){
         //Définition des contracteurs
         //condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
@@ -76,7 +78,7 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         //Définition du problème
         ivp_ode problem = ivp_ode (f, w_in[4].ub(), w_in);
         //Calcul du temps d'intersection exact avec le sol
-        t_cross_exact = exact_intersect_time(w_in[1].mid(),w_in[3].mid());
+        t_cross_exact = t_cross_exact + exact_intersect_time(w_in[1].mid(),w_in[3].mid());
         cout << "t_cross_exact: " << t_cross_exact << endl; 
         delta_T = exact_intersect_time(w_in[1].diam(),w_in[3].diam());
         cout << "delta_T: " << delta_T << endl; 
@@ -84,45 +86,74 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         cout << "duration of simulation: " << duration << endl; 
         simulation simu = simulation (&problem, duration, __METH__, __PREC__);
         simu.run_simulation();
-        //Récupère les derniers résultats au dessus de la garde de la simulation courante
-        list<solution_g>::iterator it,mem;
-        Interval ytmp;
+//L'objectif ici est de récupérer les boîtes résultats de la simulation.
+//Comme la simulation dure le temps nécessaire à la balle pour retomber,
+//la dernière boîte (après bissection) représentera notre nouvelle condition
+//initiale
+//TODO:
+//Vérifier les contraintes sur x: pourquoi on a un empty vector après la
+//première contraction?
+//Apparemment, toBB n'est pas correctement mis à jour, vérifier pour la
+//conditionnelle 
+        Interval ytmp, vytmp;
+        mem=simu.list_solution_g.begin(); 
         for(it=simu.list_solution_g.begin();it!=simu.list_solution_g.end();it++){
-            ytmp = it->box_j1->operator[](1);
-            mem=it;
+            ytmp  = it->box_j1->operator[](1);
+            vytmp = it->box_j1->operator[](3);
+            cout << "Solution: " << *it->box_j1 << endl;
+            //Si on est eu dessus du sol avec certitude, on passe à la prochaine itération
+            //en sauvegardant la solution courante pour comparaison ultérieure
             if (ytmp.lb()>=0){
                 mem = it; 
                 toPlot.push_back(*it->box_j1);
-            //Si on est eu dessus du sol avec certitude, on passe au résultat suivant
             }
             else{
-                if (ytmp.ub()>0){
-                    toBB[0]=it->box_j1->operator[](0); // x
-                    toBB[1]=it->box_j1->operator[](1); // y
-                    toBB[2]=it->box_j1->operator[](2); // vx
-                    toBB[3]=it->box_j1->operator[](3); // vy
-                    toBB[4]=it->box_j1->operator[](4); // t
-                    break;
+            //Si l'intervalle auquel appartient y contient 0 et que y décroît,
+            //alors la balle rebondira dans l'intervalle de temps décrit par la boîte
+                if (ytmp.ub()>0 && vytmp.lb()<=0){
+                    toBB=*it->box_j1; 
+                    toPlot.push_back(*it->box_j1);
+                    cout << "New toBB is here! " << toBB << endl;
+                    //break;
                 }
                 else{
-            //Si on a une boîte au dessus de 0 et une boîte en dessous de 0, 
-            //on fait une union brutale entre les intervalles
-                    toBB[0]=union_interval(it->box_j1->operator[](0),mem->box_j1->operator[](0));
-                    toBB[1]=union_interval(it->box_j1->operator[](1),mem->box_j1->operator[](1));
-                    toBB[2]=union_interval(it->box_j1->operator[](2),mem->box_j1->operator[](2));
-                    toBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
-                    toBB[4]=union_interval(it->box_j1->operator[](4),mem->box_j1->operator[](4));
-                    break;
+            //Si on a une boîte aux valeurs de y strictement négatives et que la
+            //boîte précédente avait des valeurs de y strictements positives, alors
+            //on fait l'union de ces deux intervalles. On vérifie que la vitesse
+            //est décroissante pour ne pas prendre les boîtes ascendantes 
+                    if(vytmp.ub()<=0){
+                        toBB[0]=union_interval(it->box_j1->operator[](0),mem->box_j1->operator[](0));
+                        toBB[1]=union_interval(it->box_j1->operator[](1),mem->box_j1->operator[](1));
+                        toBB[2]=union_interval(it->box_j1->operator[](2),mem->box_j1->operator[](2));
+                        toBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
+                        toBB[4]=union_interval(it->box_j1->operator[](4),mem->box_j1->operator[](4));
+                        
+                        cout << "New toBB is here! " << toBB << endl;
+                        break;
+                    }
                 }
              }
          }
-    cout << "time before contraction: " << toBB[4] << endl;
+    cout << "before first contraction x: " << toBB[0] << endl;
+    cout << "before first contraction y : " << toBB[1] << endl;
+    cout << "before first contraction vx : " << toBB[2] << endl;
+    cout << "before first contraction vy : " << toBB[3] << endl;
+    cout << "before first contraction t : " << toBB[4] << endl;
     alpha = 0.;
     A_fpAll.contract(toBB);
+    cout << "after first contraction x: " << toBB[0] << endl;
+    cout << "after first contraction y : " << toBB[1] << endl;
+    cout << "after first contraction vx : " << toBB[2] << endl;
+    cout << "after first contraction vy : " << toBB[3] << endl;
+    cout << "after first contraction t : " << toBB[4] << endl;
     toPlot.push_back(toBB);
     alpha = Eps;
-    cout << "time after contraction: " << toBB[4] << endl;
     B_fpAll.contract(toBB);
+    cout << "final x: " << toBB[0] << endl;
+    cout << "final y : " << toBB[1] << endl;
+    cout << "final vx : " << toBB[2] << endl;
+    cout << "final vy : " << toBB[3] << endl;
+    cout << "final t : " << toBB[4] << endl;
     toPlot.push_back(toBB);
     w_in[0] = toBB[0];  // x
     w_in[1] = toBB[1];  // y
@@ -130,7 +161,7 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
     w_in[3] = (-c)*toBB[3];  // vy, condition initiale négative pour simuler le rebond
     w_in[4] = toBB[4]; // t
     valid_y.push_back(toBB[1]);
-    cout << "Final initial condition" << w_in << endl;
+    cout << "Final initial condition: " << w_in << endl;
     //Vérifier les contraintes sur x ici.
     //if contraintes_x not verified then 
         //diviser w_in en deux w_in1 et w_in2
@@ -142,7 +173,7 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         //diviser w_in en deux w_in1 et w_in2
         //simulate_launch(n, w_in1, f)
         //simulate_launch(n, w_in2, f)
-    //plot_all(toPlot);
+    plot_all(toPlot);
     return(valid_y);
 }
 
