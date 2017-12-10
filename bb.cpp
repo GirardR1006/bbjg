@@ -57,14 +57,19 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         //Définition des contracteurs
         //condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
         Variable all(5); //x,y,vx,vy,t
-        Function A_f_const(all, Return( all[0] - w_in[2].lb()*all[4] - w_in[0].lb() 
-                                      , all[1]- alpha
+        //MODIF APPORTÉE: REMPLACEMENT DE LA CONTRAINTE EN X PAR AUCUNE
+        //CONTRAINTE:
+        //all[0] - w_in[2].lb()*all[4] - w_in[0].lb()
+        //par 
+        //all[0]
+        Function A_f_const(all, Return( all[0] - w_in[2].lb()*all[4] - w_in[0].lb()
+                                      , all[1] - alpha
                                       , all[2] - w_in[2].lb()
                                       , all[3] - (-9.81*all[4] + w_in[3].lb()) 
                                       , -9.81*pow(all[4],2)/2+w_in[3].ub()*all[4] + w_in[1].ub() -alpha ));  
         NumConstraint A_allConst(A_f_const,GEQ);
         CtcFwdBwd A_ctc_All(A_allConst);
-        CtcFixPoint A_fpAll(A_ctc_All, 1e-7);
+        CtcFixPoint A_fpAll(A_ctc_All, 1e-4);
 
          //condition y<=eps && vx <= max(vx(t)) &&  x<= max(x(t)) && vy <= max(vy(t))
         Function B_f_const(all, Return( all[0] - w_in[2].ub()*all[4] - w_in[0].ub() 
@@ -82,7 +87,8 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
         cout << "t_cross_exact: " << t_cross_exact << endl; 
         delta_T = exact_intersect_time(w_in[1].diam(),w_in[3].diam());
         cout << "delta_T: " << delta_T << endl; 
-        duration = t_cross_exact+delta_T;
+        //MODIFICATION: REMPLACÉ delta_T par 1.
+        duration = t_cross_exact+1.;
         cout << "duration of simulation: " << duration << endl; 
         simulation simu = simulation (&problem, duration, __METH__, __PREC__);
         simu.run_simulation();
@@ -90,11 +96,8 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
 //Comme la simulation dure le temps nécessaire à la balle pour retomber,
 //la dernière boîte (après bissection) représentera notre nouvelle condition
 //initiale
-//TODO:
-//Vérifier les contraintes sur x: pourquoi on a un empty vector après la
-//première contraction?
-//Apparemment, toBB n'est pas correctement mis à jour, vérifier pour la
-//conditionnelle 
+//Problèmes constatés:
+//Le temps calculé et le delta_t ne permettent parfois pas d'atteindre le sol
         Interval ytmp, vytmp;
         mem=simu.list_solution_g.begin(); 
         for(it=simu.list_solution_g.begin();it!=simu.list_solution_g.end();it++){
@@ -108,15 +111,17 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
                 toPlot.push_back(*it->box_j1);
             }
             else{
+                cout << "Entered first else" << endl;
             //Si l'intervalle auquel appartient y contient 0 et que y décroît,
             //alors la balle rebondira dans l'intervalle de temps décrit par la boîte
                 if (ytmp.ub()>0 && vytmp.lb()<=0){
                     toBB=*it->box_j1; 
-                    toPlot.push_back(*it->box_j1);
+               //     toPlot.push_back(*it->box_j1);
                     cout << "New toBB is here! " << toBB << endl;
-                    //break;
+//                    break;
                 }
                 else{
+                    cout << "Entered second else" << endl;
             //Si on a une boîte aux valeurs de y strictement négatives et que la
             //boîte précédente avait des valeurs de y strictements positives, alors
             //on fait l'union de ces deux intervalles. On vérifie que la vitesse
@@ -128,12 +133,13 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f){
                         toBB[3]=union_interval(it->box_j1->operator[](3),mem->box_j1->operator[](3));
                         toBB[4]=union_interval(it->box_j1->operator[](4),mem->box_j1->operator[](4));
                         
-                        cout << "New toBB is here! " << toBB << endl;
+                        cout << "New (big) toBB is here! " << toBB << endl;
                         break;
                     }
                 }
              }
          }
+
     cout << "before first contraction x: " << toBB[0] << endl;
     cout << "before first contraction y : " << toBB[1] << endl;
     cout << "before first contraction vx : " << toBB[2] << endl;
@@ -209,6 +215,6 @@ int main() {
   //*********
   //simulation et affichage des résultats
   //*********
-  res = simulate_launch(1, State_init,deriv);
+  res = simulate_launch(2, State_init,deriv);
   return 0;
 }
