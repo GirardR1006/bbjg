@@ -64,7 +64,23 @@ bool is_behind_basket (IntervalVector test,IntervalVector safe){
 //Paramètre d'entrée: IntervalVector safe: vecteur de zone panier
 //On s'attend à ce que la dimension en vy du vecteur safe soit négative
 bool has_crossed_basket (simulation* simu,IntervalVector objective){
-    return(simu->has_crossed(objective));
+ bool success=false;
+ Interval ytmp_panier,dytmp_panier,xtmp_panier;
+  for(list<solution_g>::iterator it_panier=simu->list_solution_g.begin();it_panier!=simu->list_solution_g.end();it_panier++){
+    dytmp_panier = it_panier->box_j1->operator[](3); //dy
+    xtmp_panier = it_panier->box_j1->operator[](0); //x
+    ytmp_panier = it_panier->box_j1->operator[](1);
+    if ((dytmp_panier.lb()<=0) && ytmp_panier.contains(3.05) && (xtmp_panier.lb()>=6.538) && (xtmp_panier.ub()<=6.962)){   //dy<=0 && y = 3.05 && x dans le panier (
+        cout << "Condition satisfaite, y : " << ytmp_panier << " x : " << xtmp_panier << endl;
+        success = true;
+        break;                               //alors on considère la condition satisfaite, sinon on passe au cas suivant en diminuant les intervalles
+    }
+    else{
+    cout << "Non satisfait :'(  y  : " << ytmp_panier << " x : " << xtmp_panier << endl;
+    }
+  }
+
+
 }
 //L'objectif ici est de récupérer les boîtes résultats de la simulation.
 //Comme la simulation dure le temps nécessaire à la balle pour retomber,
@@ -116,6 +132,16 @@ IntervalVector get_toBB(simulation* simu, list<IntervalVector>* toPlot, Interval
         }
     }
 }
+//On suppose que toutes les valeurs de vy0 sont de même signe (ie sgn vy0.lb =
+//sgn vy0.ub)
+double max_evaluate(Interval test){
+    if(test.lb()>0){return test.lb();}
+    else{return test.ub();}
+}
+double min_evaluate(Interval test){
+    if(test.lb()>0){return test.ub();}
+    else{return test.lb();}
+}
 
 
 //Renvoie les intervalles y0 qui vérifient les conditions de rentrée 
@@ -137,76 +163,74 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f, IntervalV
     list<solution_g>::iterator it,mem; //itérateurs sur la liste des solutions et mémoire de la solution précédente
     ivp_ode problem = ivp_ode (f, w_in[4].ub(), w_in); //Problème initial
     simulation simu = simulation (&problem, 0.0, __METH__, __PREC__); //Simulation initiale
+    double t_ideal = 6.75/w_in[2].mid();
+    vibes::drawBox(t_ideal-0.25,t_ideal+0.25,3.0,3.10,"[green]");
     for(int i=0;i<=n;i++){
         //Définition des contracteurs
         //condition y>=0 && vx >= min(vx(t)) &&  x>= min(x(t)) && vy >= min(vy(t))
         //- w_in[2].lb()*all[4] - w_in[0].lb()
         Variable all(5); //x,y,vx,vy,t
-        Function A_f_const(all, Return( all[0] - w_in[2].lb()*all[4] - w_in[0].lb()
+        Function A_f_const(all, Return( all[0] - w_in[2].lb()*all[4] - w_in[0].lb()  
                                       , all[1] - alpha
                                       , all[2] - w_in[2].lb()
-                                      , all[3] - (-9.81*all[4] + w_in[3].lb()) 
-                                      , -9.81*pow(all[4],2)/2+w_in[3].ub()*all[4] + w_in[1].ub() -alpha ));  
+                                      , all[3] - (-9.81*all[4] + max_evaluate(w_in[3])) 
+                                      , -9.81*pow(all[4],2)/2+max_evaluate(w_in[3])*all[4] + w_in[1].ub() -alpha ));  
         NumConstraint A_allConst(A_f_const,GEQ);
         CtcFwdBwd A_ctc_All(A_allConst);
         CtcFixPoint A_fpAll(A_ctc_All, 1e-4);
 
          //condition y<=eps && vx <= max(vx(t)) &&  x<= max(x(t)) && vy <= max(vy(t))
          // - w_in[2].ub()*all[4] - w_in[0].ub() 
-        Function B_f_const(all, Return( all[0] - w_in[2].ub()*all[4] - w_in[0].ub()
-                                      , all[1]- alpha
+        Function B_f_const(all, Return( all[0] - w_in[2].ub()*all[4] - w_in[0].ub() 
+                                      , all[1] - alpha
                                       , all[2] - w_in[2].ub() 
-                                      , all[3] - (-9.81*all[4] + w_in[3].ub())  
-                                      , -9.81*pow(all[4],2)/2+w_in[3].lb()*all[4] + w_in[1].lb() -alpha )); 
+                                      , all[3] - (-9.81*all[4] + min_evaluate(w_in[3]))  
+                                      , -9.81*pow(all[4],2)/2+min_evaluate(w_in[3])*all[4] + w_in[1].lb() -alpha )); 
         NumConstraint B_allConst(B_f_const,LEQ);
         CtcFwdBwd B_ctc_All(B_allConst);
         CtcFixPoint B_fpAll(B_ctc_All, 1e-7);
+        //cout << "look that w_in: " << w_in << endl; 
         //Définition du problème
         ivp_ode problem = ivp_ode (f, w_in[4].ub(), w_in);
         //Calcul du temps d'intersection exact avec le sol
         t_cross_exact = t_cross_exact + exact_intersect_time(w_in[1].mid(),w_in[3].mid());
-        cout << "t_cross_exact: " << t_cross_exact << endl; 
+        //cout << "t_cross_exact: " << t_cross_exact << endl; 
         delta_T = exact_intersect_time(w_in[1].diam(),w_in[3].diam());
-        cout << "delta_T: " << delta_T << endl; 
+        //cout << "delta_T: " << delta_T << endl; 
         //MODIFICATION: REMPLACÉ delta_T par 1.
         duration = t_cross_exact+1.;
-        cout << "duration of simulation: " << duration << endl; 
+        //cout << "duration of simulation: " << duration << endl; 
         simulation simu = simulation (&problem, duration, __METH__, __PREC__);
         simu.run_simulation(); 
         toBB = get_toBB(&simu, &toPlot, toBB);
 
-        cout << "before first contraction x: " << toBB[0] << endl;
-        cout << "before first contraction y : " << toBB[1] << endl;
-        cout << "before first contraction vx : " << toBB[2] << endl;
-        cout << "before first contraction vy : " << toBB[3] << endl;
-        cout << "before first contraction t : " << toBB[4] << endl;
+        //cout << "before first contraction x: " << toBB[0] << endl;
+        //cout << "before first contraction y : " << toBB[1] << endl;
+        //cout << "before first contraction vx : " << toBB[2] << endl;
+        //cout << "before first contraction vy : " << toBB[3] << endl;
+        //cout << "before first contraction t : " << toBB[4] << endl;
         alpha = 0.;
         A_fpAll.contract(toBB);
-        cout << "after first contraction x: " << toBB[0] << endl;
-        cout << "after first contraction y : " << toBB[1] << endl;
-        cout << "after first contraction vx : " << toBB[2] << endl;
-        cout << "after first contraction vy : " << toBB[3] << endl;
-        cout << "after first contraction t : " << toBB[4] << endl;
+        //cout << "after first contraction x: " << toBB[0] << endl;
+        //cout << "after first contraction y : " << toBB[1] << endl;
+        //cout << "after first contraction vx : " << toBB[2] << endl;
+        //cout << "after first contraction vy : " << toBB[3] << endl;
+        //cout << "after first contraction t : " << toBB[4] << endl;
         toPlot.push_back(toBB);
         alpha = Eps;
         B_fpAll.contract(toBB);
-        cout << "final x: " << toBB[0] << endl;
-        cout << "final y : " << toBB[1] << endl;
-        cout << "final vx : " << toBB[2] << endl;
-        cout << "final vy : " << toBB[3] << endl;
-        cout << "final t : " << toBB[4] << endl;
+        //cout << "final x: " << toBB[0] << endl;
+        //cout << "final y : " << toBB[1] << endl;
+        //cout << "final vx : " << toBB[2] << endl;
+        //cout << "final vy : " << toBB[3] << endl;
+        //cout << "final t : " << toBB[4] << endl;
         toPlot.push_back(toBB);
-        w_in[0] = toBB[0];  // x
-        w_in[1] = toBB[1];  // y
-        w_in[2] = c*toBB[2];  // vx
-        w_in[3] = (-c)*toBB[3];  // vy, condition initiale négative pour simuler le rebond
-        w_in[4] = toBB[4]; // t
-        cout << "Final initial condition: " << w_in << endl;
         //Vérifier les contraintes sur x ici.
         //Si au rebond n-1 on atteint la zone après le panier sans être à la
         //bonne hauteur, on est allé trop loin
+        printf("Vérifier si panier dépassé...\n");
         if(is_behind_basket(toBB,safe)){
-            std::cerr << "\t\t\033[31mErreur: dépassement du panier\033[0m" << std::endl;
+            cerr << "\t\t\033[31mErreur: dépassement du panier\033[0m" << endl;
             if (w_in[0].diam() > 0.0001){ //largeur arbitraire
                 IntervalVector w_in_1=w_in;
                 IntervalVector w_in_2=w_in;
@@ -217,15 +241,17 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f, IntervalV
                 simulate_launch(n,w_in_2,f,safe);
             }
         }
+        printf("Panier non dépassé\n");
     }
+    printf("Sortie de boucle, vérification si panier traversé après %d rebonds\n",n);
     //Vérifier les contraintes sur panier ici.
-    //if contraintes_y not verified then 
     if( has_crossed_basket(&simu,safe) ){
-        cout << "\t\t\033Panier traversé!\033[0m" << endl;
-        valid_y.push_back(w_in[1]);
+        printf("Panier traversé, condition initiale en y valide!\n");
+        valid_y.push_back(toBB[1]);
     }
     else{
-        if (w_in[1].diam() > 0.0001){ 
+        printf("Panier non traversé, relancement de l'algorithme avec y_initiale bissecté.\n");
+        if (w_in[1].diam() > 0.01){ 
             IntervalVector w_in_1=w_in;
             IntervalVector w_in_2=w_in;
             tuple<Interval,Interval> t = divide_interval(w_in[1]);
@@ -234,7 +260,14 @@ list<Interval> simulate_launch(int n, IntervalVector init, Function f, IntervalV
             simulate_launch(n,w_in_1,f,safe);
             simulate_launch(n,w_in_2,f,safe);
         }
+        else{ printf("Erreur, y est déjà trop petit. Songez à donner une vitesse initiale plus importante.\n");}
     }
+    w_in[0] = toBB[0];  // x
+    w_in[1] = toBB[1];  // y
+    w_in[2] = c*toBB[2];  // vx
+    w_in[3] = (-c)*toBB[3];  // vy, condition initiale négative pour simuler le rebond
+    w_in[4] = toBB[4]; // t
+    cout << "Condition initiale finale: " << w_in << endl;
     plot_all(toPlot);
     return(valid_y);
 }
@@ -246,8 +279,8 @@ int main() {
     //conditions initiales
     //**********
     //Vitesse
-    Interval Vx0(10.0,10.0);
-    Interval Vy0(3.0,3.0);
+    Interval Vx0(5.0,5.0);
+    Interval Vy0(10.0,10.0);
     //Position
     Interval Px0(0.0,0.0);
     Interval Py0(1.6,2.8);
@@ -280,7 +313,15 @@ int main() {
     //*********
     vibes::beginDrawing ();
     vibes::newFigure("Basket");
-    vibes::drawBox(0,6.93,3.05,3.05, "[red]");
-    res = simulate_launch(1, State_init,deriv,basket);
+    res = simulate_launch(0, State_init,deriv,basket);
+    printf("A-t-on un y_init qui marche?\n");
+    if (res.size()==0){
+        printf("Nope. Triste ;(\n");
+    }
+    else{
+        for (list<Interval>::iterator fit = res.begin();fit!=res.end();fit++){
+            cout << "y_init qui marche: " << *fit << endl;
+        }
+    }
     return 0;
 }
